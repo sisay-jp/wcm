@@ -78,11 +78,11 @@ function Export-CsvFile {
     )
     
     begin {
-        $allData = @()
+        $allData = [System.Collections.ArrayList]::new()
     }
     
     process {
-        $allData += $Data
+        [void]$allData.AddRange($Data)
     }
     
     end {
@@ -369,6 +369,15 @@ function Rename-CsvColumn {
         $OutputPath = $Path
     }
     
+    # 最初の行で列の存在を確認
+    if ($data -and $data.Count -gt 0) {
+        $firstRow = $data[0]
+        if (-not $firstRow.PSObject.Properties.Name -contains $OldName) {
+            Write-Error "列 '$OldName' が見つかりません"
+            return
+        }
+    }
+    
     $updatedData = $data | ForEach-Object {
         $value = $_.$OldName
         $_ | Add-Member -MemberType NoteProperty -Name $NewName -Value $value -Force
@@ -425,8 +434,32 @@ function Select-CsvRows {
         "NotEquals" { $data | Where-Object { $_.$Column -ne $Value } }
         "Contains" { $data | Where-Object { $_.$Column -like "*$Value*" } }
         "NotContains" { $data | Where-Object { $_.$Column -notlike "*$Value*" } }
-        "GreaterThan" { $data | Where-Object { [double]$_.$Column -gt [double]$Value } }
-        "LessThan" { $data | Where-Object { [double]$_.$Column -lt [double]$Value } }
+        "GreaterThan" { 
+            $data | Where-Object { 
+                $numValue = 0
+                $numColumn = 0
+                if ([double]::TryParse($Value, [ref]$numValue) -and [double]::TryParse($_.$Column, [ref]$numColumn)) {
+                    $numColumn -gt $numValue
+                }
+                else {
+                    Write-Warning "数値比較に失敗しました: 行 $($_.Name), 値 '$($_.$Column)'"
+                    $false
+                }
+            }
+        }
+        "LessThan" { 
+            $data | Where-Object { 
+                $numValue = 0
+                $numColumn = 0
+                if ([double]::TryParse($Value, [ref]$numValue) -and [double]::TryParse($_.$Column, [ref]$numColumn)) {
+                    $numColumn -lt $numValue
+                }
+                else {
+                    Write-Warning "数値比較に失敗しました: 行 $($_.Name), 値 '$($_.$Column)'"
+                    $false
+                }
+            }
+        }
     }
     
     if ($OutputPath) {
