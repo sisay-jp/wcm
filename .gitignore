@@ -1,0 +1,15 @@
+# Test output directory
+test_output/
+demo_output/
+
+# PowerShell module cache
+*.psm1.cache
+
+# Common temporary files
+*.tmp
+*.temp
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
