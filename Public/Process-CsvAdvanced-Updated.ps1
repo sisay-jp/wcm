@@ -23,7 +23,8 @@ function Process-CsvAdvanced-Updated {
     .PARAMETER InputFile
         入力ファイルのパス
     .PARAMETER ReplaceFile
-        条件付き置換ルール定義ファイル（CSV 2列: Condition, ReplacePair / ヘッダなし / ダブルクオート）
+        条件付き置換ルール定義ファイル（CSV 2列: Condition, ReplacePair / ヘッダなし / ダブルクオート）。
+        ※ ヘッダ行を含めないでください。ファイルの先頭行はヘッダではなくデータ行として処理されます（ヘッダを記載すると、その行も置換ルールとして読み込まれます）。
     .PARAMETER ExcludeFile
         除外ワード定義ファイル（テキスト: カンマ区切り）
     .PARAMETER OutputFile
