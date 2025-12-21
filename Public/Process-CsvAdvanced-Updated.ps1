@@ -2,109 +2,232 @@
 function Process-CsvAdvanced-Updated {
     <#
     .SYNOPSIS
-        高度なCSV処理を実行する（シンプル置換、除外、重複削除）
+        高度なCSV処理を実行する（条件付き置換、除外、重複削除）
     .DESCRIPTION
-        CSVファイルをシンプルな置換、除外処理、重複削除などの高度な処理を行います
+        入力（1行=区切り文字で並んだ語）に対して
+        1) 条件付き置換（ReplaceFile: "Condition","ReplacePair" 2列CSV / 両方ダブルクオート）
+        2) 置換後の展開（new に区切り文字が含まれる場合、要素に分割）
+        3) 除外
+        4) 行内重複削除（順序維持）
+        5) 行全体重複削除（順序非依存：ソート文字列で判定）
+        を行います。
+
+        ReplaceFile（ヘッダなし/2列CSV）例:
+          "who,i am","who->"
+          "who","who->"
+          "i am","i am->he is"
+          "i am","i am->he is friend"
+          "a,b","c->d"
+          "e,f","f->g,h,"
+
     .PARAMETER InputFile
-        入力CSVファイルのパス
+        入力ファイルのパス
     .PARAMETER ReplaceFile
-        置換ルール定義ファイルのパス（CSV形式、Old,Newヘッダー、オプション）
+        条件付き置換ルール定義ファイル（CSV 2列: Condition, ReplacePair / ヘッダなし / ダブルクオート）
     .PARAMETER ExcludeFile
-        除外ワード定義ファイルのパス（テキスト、1行1ワード、オプション）
+        除外ワード定義ファイル（テキスト: カンマ区切り）
     .PARAMETER OutputFile
         出力ファイルのパス
-    .EXAMPLE
-        Process-CsvAdvanced-Updated -InputFile "data.csv" -ReplaceFile "rules.csv" -ExcludeFile "exclude.txt" -OutputFile "output.csv"
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [string]$InputFile,
 
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory = $false)]
         [string]$ReplaceFile,
 
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory = $false)]
         [string]$ExcludeFile,
 
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [string]$OutputFile
     )
 
-    $enc = $script:WCMConfig.DefaultEncoding
+    $enc       = $script:WCMConfig.DefaultEncoding
     $delimiter = $script:WCMConfig.DefaultDelimiter
 
-    # ファイル存在チェック
-    if (-not (Test-Path $InputFile)) {
+    # CaseSensitive を比較ロジックに統一的に反映
+    $caseSensitive = [bool]$script:WCMConfig.CaseSensitive
+
+    # -------------------------
+    # existence checks
+    # -------------------------
+    if (-not (Test-Path -LiteralPath $InputFile)) {
         Write-WCMLog -Level ERROR -Message "入力ファイルが見つかりません: $InputFile" -Data @{ Path = $InputFile }
         return
     }
 
-    # 置換リストをハッシュテーブルに読み込む
-    $replaceMap = @{}
-    if ($ReplaceFile -and (Test-Path $ReplaceFile)) {
-        Import-Csv -Path $ReplaceFile -Header "Old", "New" -Encoding $enc | ForEach-Object {
-            $replaceMap[$_.Old.Trim()] = $_.New.Trim()
+    # -------------------------
+    # normalize helper
+    # - 比較/重複判定/除外判定に使う文字列はこれで統一
+    # - newWord 自体は「意味」を壊さないため、展開後にのみ normalize を通す
+    # -------------------------
+    $normalize = {
+        param([string]$s)
+        if ($null -eq $s) { return '' }
+        ($s.Trim() -replace '\s+', ' ')
+    }
+
+    # -------------------------
+    # load replace rules
+    # complexReplaceMap:
+    #   key: "cond1,cond2"（normalize 済み）
+    #   val: hashtable old=>new（old は normalize 済み / new は Trim のみ）
+    # -------------------------
+    $complexReplaceMap = @{}
+
+    if ($ReplaceFile) {
+        if (Test-Path -LiteralPath $ReplaceFile) {
+            Import-Csv -Path $ReplaceFile -Header "Condition", "ReplacePair" -Encoding $enc | ForEach-Object {
+                $row = $_
+                if ($null -eq $row) { return }
+
+                $condRaw = [string]$row.Condition
+                $pairRaw = [string]$row.ReplacePair
+
+                if ([string]::IsNullOrWhiteSpace($condRaw)) { return }
+                if ([string]::IsNullOrWhiteSpace($pairRaw)) { return }
+
+                # Condition はセル内の "A,B" を分割
+                $conditions = $condRaw.Split(',') | ForEach-Object { & $normalize $_ } | Where-Object { $_ }
+                if ($conditions.Count -eq 0) { return }
+
+                # ReplacePair は最初の -> でのみ分割（new は空でもOK）
+                if ($pairRaw -notlike '*->*') { return }
+                $parts = $pairRaw -split '->', 2
+
+                $oldWord = & $normalize $parts[0]
+                $newWord = if ($parts.Count -gt 1) { $parts[1].Trim() } else { "" }
+
+                if ([string]::IsNullOrWhiteSpace($oldWord)) { return }
+
+                $key = $conditions -join ','
+                if (-not $complexReplaceMap.ContainsKey($key)) {
+                    $complexReplaceMap[$key] = @{}
+                }
+                $complexReplaceMap[$key][$oldWord] = $newWord
+            }
+
+            Write-WCMLog -Level INFO -Message "置換ルール条件キー数: $($complexReplaceMap.Count)" -Data @{ ReplaceFile = $ReplaceFile }
+        } else {
+            Write-WCMLog -Level WARN -Message "置換ファイルが見つかりません: $ReplaceFile" -Data @{ ReplaceFile = $ReplaceFile }
         }
-        Write-WCMLog -Level INFO -Message "置換ルール数: $($replaceMap.Count)" -Data @{ ReplaceFile = $ReplaceFile }
-    } elseif ($ReplaceFile) {
-        Write-WCMLog -Level WARN -Message "置換ファイルが見つかりません: $ReplaceFile" -Data @{ ReplaceFile = $ReplaceFile }
     }
 
-    # 除外ワードリストを読み込む
+    # -------------------------
+    # load exclude words (カンマ区切り)
+    # ※ exclude は比較対象なので normalize 済みで保持
+    # -------------------------
     $excludeWords = @()
-    if ($ExcludeFile -and (Test-Path $ExcludeFile)) {
-        $excludeWords = Get-Content -Path $ExcludeFile -Encoding $enc | ForEach-Object { $_.Trim() } | Where-Object { $_ }
-        Write-WCMLog -Level INFO -Message "除外ワード数: $($excludeWords.Count)" -Data @{ ExcludeFile = $ExcludeFile }
-    } elseif ($ExcludeFile) {
-        Write-WCMLog -Level WARN -Message "除外ファイルが見つかりません: $ExcludeFile" -Data @{ ExcludeFile = $ExcludeFile }
+    if ($ExcludeFile) {
+        if (Test-Path -LiteralPath $ExcludeFile) {
+            $fileContent = Get-Content -Path $ExcludeFile -Encoding $enc -Raw
+            $excludeWords = $fileContent -split ',' | ForEach-Object { & $normalize $_ } | Where-Object { $_ }
+            Write-WCMLog -Level INFO -Message "除外ワード数: $($excludeWords.Count)" -Data @{ ExcludeFile = $ExcludeFile }
+        } else {
+            Write-WCMLog -Level WARN -Message "除外ファイルが見つかりません: $ExcludeFile" -Data @{ ExcludeFile = $ExcludeFile }
+        }
     }
 
-    # 入力ファイルを読み込む
+    # -------------------------
+    # read input
+    # -------------------------
     $inputLines = Get-Content -Path $InputFile -Encoding $enc
     Write-WCMLog -Level INFO -Message "処理対象行数: $($inputLines.Count)" -Data @{ InputFile = $InputFile }
 
-    # メイン処理
+    # -------------------------
+    # main
+    # -------------------------
     $processedLines = [System.Collections.Generic.List[string]]::new()
     $uniqueCheck = [System.Collections.Generic.HashSet[string]]::new()
 
     foreach ($line in $inputLines) {
-        # 1. 行をカンマで分割し、前後の空白を除去
-        $items = $line -split [regex]::Escape($delimiter) | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+        # 1) split line into items（normalize して保持）
+        $currentItems = [System.Collections.Generic.List[string]]::new()
+        $line.Split($delimiter) | ForEach-Object {
+            $t = & $normalize $_
+            if ($t) { $currentItems.Add($t) }
+        }
 
-        # 2. 単語を置換
-        $replacedItems = $items | ForEach-Object {
-            if ($replaceMap.ContainsKey($_)) {
-                $replaceMap[$_]
-            } else {
-                $_
+        # 2) condition-based replace
+        foreach ($entry in $complexReplaceMap.GetEnumerator()) {
+            $conditions = $entry.Key.Split(',') | ForEach-Object { & $normalize $_ } | Where-Object { $_ }
+            $replacementPairs = $entry.Value  # hashtable old=>new
+
+            # 条件判定（CaseSensitive に統一）
+            $allConditionsMet = $true
+            foreach ($c in $conditions) {
+                if ($caseSensitive) {
+                    if ($currentItems -cnotcontains $c) { $allConditionsMet = $false; break }
+                } else {
+                    if ($currentItems -notcontains $c) { $allConditionsMet = $false; break }
+                }
+            }
+
+            if ($allConditionsMet) {
+                foreach ($pair in $replacementPairs.GetEnumerator()) {
+                    $oldW = $pair.Key
+                    $newW = $pair.Value
+
+                    for ($i = 0; $i -lt $currentItems.Count; $i++) {
+                        if ($caseSensitive) {
+                            if ($currentItems[$i] -ceq $oldW) { $currentItems[$i] = $newW }
+                        } else {
+                            if ($currentItems[$i] -ieq $oldW) { $currentItems[$i] = $newW }
+                        }
+                    }
+                }
             }
         }
 
-        # 3. 単語を除外
-        $filteredItems = $replacedItems | Where-Object {
-            $_ -notin $excludeWords
+        # 2.5) expand items
+        # - newW に delimiter を含む場合は分割
+        # - 分割後は normalize して空要素は捨てる（例: "g,h," の末尾空を捨てる）
+        $expandedItems = [System.Collections.Generic.List[string]]::new()
+        foreach ($item in $currentItems) {
+            if ($item -like "*$delimiter*") {
+                $item.Split($delimiter) | ForEach-Object {
+                    $t = & $normalize $_
+                    if ($t) { $expandedItems.Add($t) }
+                }
+            } else {
+                $t = & $normalize $item
+                if ($t) { $expandedItems.Add($t) }
+            }
+        }
+        $currentItems = $expandedItems
+
+        # 3) exclude（空白含みも normalize された値で比較）
+        $filteredItems = [System.Collections.Generic.List[string]]::new()
+        foreach ($item in $currentItems) {
+            $shouldExclude = $false
+            foreach ($ex in $excludeWords) {
+                # オリジナルに寄せて大小無視で除外（必要なら CaseSensitive に寄せてもOK）
+                if ($item -eq $ex) { $shouldExclude = $true; break }
+            }
+            if (-not $shouldExclude) { $filteredItems.Add($item) }
         }
 
-        # 4. 行内の重複する単語を削除（最初に出現したものを優先）
-        $uniqueFilteredItems = $filteredItems | Select-Object -Unique
+        # 4) de-dup within line (keep order)
+        $finalItemsInLine = [System.Collections.Generic.List[string]]::new()
+        $seenInLine = [System.Collections.Generic.HashSet[string]]::new()
+        foreach ($item in $filteredItems) {
+            if ($seenInLine.Add($item)) { $finalItemsInLine.Add($item) }
+        }
 
-        # 項目が残っている場合のみ処理を続行
-        if ($uniqueFilteredItems.Count -gt 0) {
-            # 5. 重複チェックのためだけに、行内の単語を「ソートした」文字列を生成
-            $standardizedLine = ($uniqueFilteredItems | Sort-Object) -join $delimiter
-
-            # 6. 「ソートした文字列」を使って行全体の重複をチェック
+        # 5-7) de-dup whole line (order-insensitive via sorted string)
+        if ($finalItemsInLine.Count -gt 0) {
+            $standardizedLine = ($finalItemsInLine | Sort-Object) -join $delimiter
             if ($uniqueCheck.Add($standardizedLine)) {
-                # 7. 結果リストには「ソートしていない元の順序の」文字列を追加
-                $originalOrderLine = $uniqueFilteredItems -join $delimiter
-                $processedLines.Add($originalOrderLine)
+                $processedLines.Add(($finalItemsInLine -join $delimiter))
             }
         }
     }
 
-    # 結果の出力
+    # -------------------------
+    # output
+    # -------------------------
     $processedLines | Out-File -FilePath $OutputFile -Encoding $enc
-
     Write-WCMLog -Level INFO -Message "処理が完了しました: $OutputFile" -Data @{ OutputFile = $OutputFile; Lines = $processedLines.Count }
 }
