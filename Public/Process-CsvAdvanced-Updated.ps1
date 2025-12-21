@@ -141,7 +141,11 @@ function Process-CsvAdvanced-Updated {
     # main
     # -------------------------
     $processedLines = [System.Collections.Generic.List[string]]::new()
-    $uniqueCheck = [System.Collections.Generic.HashSet[string]]::new()
+    if ($caseSensitive) {
+        $uniqueCheck = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    } else {
+        $uniqueCheck = [System.Collections.Generic.HashSet[string]]::new()
+    }
 
     foreach ($line in $inputLines) {
         # 1) split line into items（normalize して保持）
