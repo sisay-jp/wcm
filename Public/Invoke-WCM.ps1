@@ -117,7 +117,6 @@ function Invoke-WCM {
                 Write-WCMLog -Level INFO -Message "Start task: $displayName | Action=$action"
             } catch {}
 
-            # ★ ここから追加：最終 Params を DEBUG ログで出す
             try {
                 if ($params.Count -eq 0) {
                     Write-WCMLog -Level DEBUG -Message "Task params: (none)"
@@ -135,7 +134,6 @@ function Invoke-WCM {
                     Write-WCMLog -Level DEBUG -Message ("Task params: " + ($pairs -join " | "))
                 }
             } catch {}
-            # ★ 追加ここまで
 
             & $action @params
 
