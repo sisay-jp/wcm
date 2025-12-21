@@ -204,8 +204,12 @@ function Process-CsvAdvanced-Updated {
         foreach ($item in $currentItems) {
             $shouldExclude = $false
             foreach ($ex in $excludeWords) {
-                # オリジナルに寄せて大小無視で除外（必要なら CaseSensitive に寄せてもOK）
-                if ($item -eq $ex) { $shouldExclude = $true; break }
+                # CaseSensitive 設定に合わせて比較方法を切り替える
+                if ($caseSensitive) {
+                    if ($item -ceq $ex) { $shouldExclude = $true; break }
+                } else {
+                    if ($item -ieq $ex) { $shouldExclude = $true; break }
+                }
             }
             if (-not $shouldExclude) { $filteredItems.Add($item) }
         }
