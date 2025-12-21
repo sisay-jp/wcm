@@ -157,7 +157,7 @@ function Process-CsvAdvanced-Updated {
 
         # 2) condition-based replace
         foreach ($entry in $complexReplaceMap.GetEnumerator()) {
-            $conditions = $entry.Key.Split(',') | ForEach-Object { & $normalize $_ } | Where-Object { $_ }
+            $conditions = $entry.Key.Split(',')
             $replacementPairs = $entry.Value  # hashtable old=>new
 
             # 条件判定（CaseSensitive に統一）
