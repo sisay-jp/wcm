@@ -216,7 +216,11 @@ function Process-CsvAdvanced-Updated {
 
         # 4) de-dup within line (keep order)
         $finalItemsInLine = [System.Collections.Generic.List[string]]::new()
-        $seenInLine = [System.Collections.Generic.HashSet[string]]::new()
+        if ($caseSensitive) {
+            $seenInLine = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        } else {
+            $seenInLine = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        }
         foreach ($item in $filteredItems) {
             if ($seenInLine.Add($item)) { $finalItemsInLine.Add($item) }
         }
