@@ -96,8 +96,8 @@ function Invoke-WCM {
             if ($v -isnot [string]) { continue }
             if ([string]::IsNullOrWhiteSpace($v)) { continue }
 
-            # 絶対パスっぽいものはそのまま（Windows/UNC/Unix）
-            if ($v -match '^[a-zA-Z]:\\' -or $v.StartsWith('\\') -or $v.StartsWith('/')) { continue }
+            # 絶対パスっぽいものはそのまま（Windows/UNC/Unix など、ルート付きパス）
+            if ([System.IO.Path]::IsPathRooted($v)) { continue }
 
             # ファイル/ディレクトリっぽいものだけ（雑だが安全側）
             if ($v -match '\\|/' -or $v -match '\.\w+$') {
