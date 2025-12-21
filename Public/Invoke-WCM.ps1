@@ -5,20 +5,10 @@ function Invoke-WCM {
     .DESCRIPTION
         「引数で全部渡す」のではなく、設定ファイル（.psd1 / .json）にまとめて
         そこから各メイン関数（Process-CsvAdvanced-Updated 等）を呼び出します。
-
-        設定例（psd1）:
-        @{
-          ModuleConfig = @{ DefaultEncoding = 'UTF8'; CaseSensitive = $false }
-          Tasks = @(
-            @{ Action = 'Process-CsvAdvanced-Updated'; Params = @{ InputFile = 'examples/sample_data.csv'; ReplaceFile = 'examples/rules.csv'; ExcludeFile = 'examples/exclude.txt'; OutputFile = 'demo_output/out.csv' } }
-          )
-        }
     .PARAMETER ConfigPath
         実行設定ファイルのパス（.psd1 / .json）
     .PARAMETER TaskName
         Tasks に Name を付けている場合、その Name のみ実行する
-    .PARAMETER WhatIf
-        呼び出しだけ行い、実際の処理を実行しない（呼び出し先が -WhatIf に対応している場合のみ有効）
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     param(
@@ -29,26 +19,44 @@ function Invoke-WCM {
         [string]$TaskName
     )
 
-    if (-not (Test-Path $ConfigPath)) {
+    if (-not (Test-Path -LiteralPath $ConfigPath)) {
         throw "ConfigPath が見つかりません: $ConfigPath"
     }
 
-    $baseDir = Split-Path -Path $ConfigPath -Parent
-    $ext = [System.IO.Path]::GetExtension($ConfigPath).ToLowerInvariant()
+    # ConfigPath をフルパス化（親ディレクトリ無し相対パス対策）
+    $configFullPath = $ConfigPath
+    try {
+        $configFullPath = (Resolve-Path -LiteralPath $ConfigPath).Path
+    } catch {
+        $configFullPath = $ConfigPath
+    }
+
+    # Config の基準ディレクトリ（親が空なら CurrentDir）
+    $baseDir = Split-Path -Path $configFullPath -Parent
+    if ([string]::IsNullOrWhiteSpace($baseDir)) {
+        $baseDir = (Get-Location).Path
+    }
+
+    $ext = [System.IO.Path]::GetExtension($configFullPath).ToLowerInvariant()
     switch ($ext) {
-        '.psd1' { $cfg = Import-PowerShellDataFile -Path $ConfigPath }
-        '.json' { $cfg = (Get-Content -Path $ConfigPath -Raw) | ConvertFrom-Json -AsHashtable }
+        '.psd1' { $cfg = Import-PowerShellDataFile -Path $configFullPath }
+        '.json' { $cfg = (Get-Content -Path $configFullPath -Raw) | ConvertFrom-Json -AsHashtable }
         default { throw "未対応の設定ファイル形式です: $ext（.psd1 / .json を指定してください）" }
     }
 
     if (-not ($cfg -is [hashtable])) {
-        throw "設定ファイルの読み込みに失敗しました: $ConfigPath"
+        throw "設定ファイルの読み込みに失敗しました: $configFullPath"
     }
 
     # 1) モジュール設定の反映（任意）
     if ($cfg.ContainsKey('ModuleConfig') -and ($cfg.ModuleConfig -is [hashtable])) {
         Set-WCMConfig -Config $cfg.ModuleConfig
     }
+
+    # Invoke-WCM 実行コンテキストをログ（設定反映後に出す）
+    try {
+        Write-WCMLog -Level INFO -Message "Invoke-WCM start | CurrentDir=$((Get-Location).Path) | ConfigPath=$configFullPath | BaseDir=$baseDir"
+    } catch {}
 
     # 2) Tasks の実行
     $tasks = @()
@@ -85,21 +93,55 @@ function Invoke-WCM {
         foreach ($k in @($params.Keys)) {
             $v = $params[$k]
             if ($v -isnot [string]) { continue }
+            if ([string]::IsNullOrWhiteSpace($v)) { continue }
+
+            # 絶対パスっぽいものはそのまま（Windows/UNC/Unix）
             if ($v -match '^[a-zA-Z]:\\' -or $v.StartsWith('\\') -or $v.StartsWith('/')) { continue }
 
             # ファイル/ディレクトリっぽいものだけ（雑だが安全側）
             if ($v -match '\\|/' -or $v -match '\.\w+$') {
-                $params[$k] = Join-Path $baseDir $v
+                if (-not [string]::IsNullOrWhiteSpace($baseDir)) {
+                    $params[$k] = Join-Path -Path $baseDir -ChildPath $v
+                }
             }
         }
 
         $displayName = if ($t.Name) { $t.Name } else { $action }
+
         if ($PSCmdlet.ShouldProcess($displayName, $action)) {
             if (-not (Get-Command -Name $action -ErrorAction SilentlyContinue)) {
                 throw "Action '$action' が見つかりません（モジュールの Public 関数名を指定してください）"
             }
 
+            try {
+                Write-WCMLog -Level INFO -Message "Start task: $displayName | Action=$action"
+            } catch {}
+
+            # ★ ここから追加：最終 Params を DEBUG ログで出す
+            try {
+                if ($params.Count -eq 0) {
+                    Write-WCMLog -Level DEBUG -Message "Task params: (none)"
+                } else {
+                    $pairs = foreach ($k in ($params.Keys | Sort-Object)) {
+                        $raw = $params[$k]
+
+                        # ログ汚染防止：改行を潰して短縮
+                        $s = if ($null -eq $raw) { '<null>' } else { [string]$raw }
+                        $s = $s -replace "(\r\n|\r|\n)", ' '
+                        if ($s.Length -gt 240) { $s = $s.Substring(0, 240) + '...' }
+
+                        "{0}={1}" -f $k, $s
+                    }
+                    Write-WCMLog -Level DEBUG -Message ("Task params: " + ($pairs -join " | "))
+                }
+            } catch {}
+            # ★ 追加ここまで
+
             & $action @params
+
+            try {
+                Write-WCMLog -Level INFO -Message "Finish task: $displayName"
+            } catch {}
         }
     }
 }
