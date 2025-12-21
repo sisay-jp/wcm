@@ -100,7 +100,14 @@ function Invoke-WCM {
             if ([System.IO.Path]::IsPathRooted($v)) { continue }
 
             # ファイル/ディレクトリっぽいものだけ（雑だが安全側）
-            if ($v -match '\\|/' -or $v -match '\.\w+$') {
+            if (
+                $v -match '\\|/' -or
+                (
+                    ($k -is [string]) -and
+                    ($k -match '(?i)(Path|File|Directory|Dir|Folder)$') -and
+                    ($v -match '\.\w+$')
+                )
+            ) {
                 if (-not [string]::IsNullOrWhiteSpace($baseDir)) {
                     $params[$k] = Join-Path -Path $baseDir -ChildPath $v
                 }
