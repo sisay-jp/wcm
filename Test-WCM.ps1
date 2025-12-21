@@ -94,6 +94,18 @@ try {
     $filtered = Import-CsvFile -Path $outputPath
     Write-Host "  ✓ フィルタリング完了: $($filtered.Count) 行" -ForegroundColor Green
     $filtered | Format-Table | Out-String | Write-Host
+
+    # テスト 11: テキスト内容不一致検索
+    Write-Host "テスト 11: テキスト内容不一致検索 (OR/AND条件)" -ForegroundColor Cyan
+    $outputPath = Join-Path $testDir "content_mismatch_results.csv"
+    Find-TextContent-Mismatch -SearchFolder "examples" -KeywordFile "examples/search_keywords.txt" -OutputFile $outputPath
+    if (Test-Path $outputPath) {
+        $resultCount = (Get-Content $outputPath | Measure-Object).Count - 1  # ヘッダー除く
+        Write-Host "  ✓ 不一致検索完了: $resultCount 件" -ForegroundColor Green
+        Get-Content $outputPath | Select-Object -First 3 | Out-String | Write-Host
+    } else {
+        Write-Host "  ✓ 不一致検索完了: 結果なし" -ForegroundColor Green
+    }
     
     Write-Host ""
     Write-Host "=== すべてのテストが成功しました！ ===" -ForegroundColor Green
