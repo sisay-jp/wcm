@@ -10,7 +10,7 @@
 
     LogEnabled   = $true
     LogLevel     = 'INFO'
-    LogPath      = 'demo_output/WCM.log'
+    LogPath      = 'demo_output\WCM.log'
     LogToConsole = $true
   }
 
