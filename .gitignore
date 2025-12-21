@@ -1,6 +1,8 @@
 # Test output directory
 test_output/
 demo_output/
+output/
+work/
 
 # PowerShell module cache
 *.psm1.cache
