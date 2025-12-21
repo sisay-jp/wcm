@@ -28,6 +28,7 @@ function Invoke-WCM {
     try {
         $configFullPath = (Resolve-Path -LiteralPath $ConfigPath).Path
     } catch {
+        Write-Warning ("ConfigPath のフルパス解決に失敗したため、指定されたパスをそのまま使用します。ConfigPath: '{0}' 詳細: {1}" -f $ConfigPath, $_.Exception.Message)
         $configFullPath = $ConfigPath
     }
 
