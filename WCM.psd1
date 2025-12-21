@@ -18,7 +18,21 @@
         'Add-CsvColumn',
         'Remove-CsvColumn',
         'Rename-CsvColumn',
-        'Select-CsvRows'
+        'Select-CsvRows',
+        'Get-WCMConfig',
+        'Set-WCMConfig',
+        'Process-CsvAdvanced',
+        'Process-TextFile',
+        'Merge-TextFiles',
+        'Find-UnusedSearchTerms',
+        'Get-UniqueKeywords',
+        'Process-TextFile-Updated',
+        'Process-CsvAdvanced-Updated',
+        'Process-TextFile-Simple',
+        'Find-TextContent',
+        'Find-TextContent-Mismatch',
+        'Find-TextContent-WithCopy',
+        'Invoke-WCM'
     )
     
     # このモジュールからエクスポートされるコマンドレット
