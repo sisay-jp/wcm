@@ -238,3 +238,4 @@ Pull requests are welcome!
 問題が発生した場合は、GitHub の Issues でお知らせください。
 
 If you encounter any issues, please report them on GitHub Issues."test" 
+"test2" 
