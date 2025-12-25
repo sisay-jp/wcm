@@ -19,8 +19,8 @@
       Name   = 'csv_advanced'
       Action = 'Process-CsvAdvanced-Updated'
       Params = @{
-        InputFile   = 'work\combined\combined.txt'
-        ReplaceFile = 'work\replaces\replace_words.csv'
+        InputFile   = 'work\combined\combined_yuis2.txt'
+        ReplaceFile = 'work\replaces\replace_words_bikini_solo_20251225.csv'
         ExcludeFile = 'work\rules\exclude4.txt'
         OutputFile  = 'output\result.txt'
       }
@@ -35,6 +35,14 @@
         # OutputFile = 'output\result2.txt'      # 1ファイル出力もしたいなら任意で追加
         # SortItems = $true                      # 必要なら
         # CountExclusions = $true                # 必要なら
+      }
+    },
+    @{
+      Name   = 'unique_keywords'
+      Action = 'Get-UniqueKeywords'
+      Params = @{
+        TargetFolder = '.\output\modify'
+        OutputFile  = '.\output\unique_keywords.txt'         
       }
     }
   )
