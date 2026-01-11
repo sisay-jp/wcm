@@ -78,6 +78,9 @@ Import-Module ./WCM.psd1
 # モジュールをインポート
 Import-Module ./WCM.psd1
 
+# タスクの実行
+Invoke-WCM -ConfigPath "wcm.run.psd1"
+
 # CSV ファイルを読み込む
 $data = Import-CsvFile -Path "examples/sample_data.csv"
 $data | Format-Table
