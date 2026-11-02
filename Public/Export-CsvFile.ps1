@@ -45,6 +45,7 @@ function Export-CsvFile {
 
     end {
         try {
+            New-WCMParentDirectory -Path $Path
             if ($IncludeHeader) {
                 $allData | Export-Csv -Path $Path -Encoding $Encoding -NoTypeInformation -Delimiter $Delimiter -NoClobber:$NoClobber
             } else {

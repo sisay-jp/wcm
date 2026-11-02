@@ -41,21 +41,26 @@ function Process-TextFile-Updated {
     # ファイルAの内容を読み込み、削除するワードのリストを作成します
     $remove_words = (Get-Content $InputFileA -Raw) -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
 
+    # 大文字小文字の扱いは CaseSensitive 設定に従います
+    $comparer = Get-WCMStringComparer
+    $remove_set = [System.Collections.Generic.HashSet[string]]::new($comparer)
+
     # カウンタを初期化します
-    $word_count = @{}
+    $word_count = [hashtable]::new($comparer)
     foreach ($word in $remove_words) {
+        [void]$remove_set.Add($word)
         $word_count[$word] = 0
     }
 
     # ファイルBの内容を1行ずつ読み込み、処理します
     $lines = Get-Content $InputFileB -Encoding $enc
     $filtered_lines = @()
-    $unique_lines = New-Object System.Collections.ArrayList
+    $unique_lines = [System.Collections.Generic.HashSet[string]]::new($comparer)
 
     foreach ($line in $lines) {
         # 各行の内容をカンマで分割し、削除するワードをカウントしながら取り除きます
         $filtered_items = $line -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Where-Object {
-            if ($remove_words -contains $_) {
+            if ($remove_set.Contains($_)) {
                 if ($_ -notmatch '^\<') { $word_count[$_] += 1 }
                 return $false
             }
@@ -67,8 +72,7 @@ function Process-TextFile-Updated {
         $standardized_line = $sorted_items -join ','
 
         # 重複を排除し、ユニークな行を保存しますが、出力はソート前の形式を維持します
-        if (-not $unique_lines.Contains($standardized_line)) {
-            [void]$unique_lines.Add($standardized_line)
+        if ($unique_lines.Add($standardized_line)) {
             $filtered_lines += ($filtered_items -join ',' -replace ',+', ',' -replace '^,|,$','')
         }
     }
@@ -77,6 +81,7 @@ function Process-TextFile-Updated {
     $filtered_lines
 
     # 重複を排除した結果をファイルに出力します
+    New-WCMParentDirectory -Path $OutputFile
     $filtered_lines | Out-File -FilePath $OutputFile -Encoding $enc
 
     # カウンタを表示します（カウント数の降順、ワード文字列の昇順でソート）

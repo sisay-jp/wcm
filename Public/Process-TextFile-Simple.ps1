@@ -64,6 +64,7 @@ function Process-TextFile-Simple {
 
     # 出力ファイルが指定されている場合
     if ($OutputFile) {
+        New-WCMParentDirectory -Path $OutputFile
         Set-Content -Path $OutputFile -Value $modifiedLines -Encoding $enc
         Write-Host "テキストBの処理が完了しました。処理後の行数: $($modifiedLines.Count)"
     }
@@ -100,25 +101,31 @@ function Remove-Values-Simple {
         [string[]]$values
     )
 
+    # 大文字小文字の扱いは CaseSensitive 設定に従う
+    $comparer = Get-WCMStringComparer
+
+    # 除外リストが空でも処理できるようにする
+    if (-not $values) { $values = @() }
+
     # 除外する値をハッシュセットに変換（高速な検索のため）
     $valuesToRemove = [System.Collections.Generic.HashSet[string]]::new(
         $values,
-        [System.StringComparer]::Ordinal  # 大文字小文字を区別
+        $comparer
     )
 
     # 処理後のユニークな行を格納
     $uniqueResultLines = [System.Collections.Generic.HashSet[string]]::new(
-        [System.StringComparer]::Ordinal
+        $comparer
     )
 
     foreach ($line in $lines) {
         # 行をカンマで分割、トリム、空要素を除去
         $items = $line -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
 
-        # 各行内の重複を除去（順序維持、大文字小文字区別）
+        # 各行内の重複を除去（順序維持）
         $uniqueItems = [System.Collections.Generic.List[string]]::new()
         $seenInLine = [System.Collections.Generic.HashSet[string]]::new(
-            [System.StringComparer]::Ordinal
+            $comparer
         )
 
         foreach ($item in $items) {
@@ -153,6 +160,9 @@ function Save-LinesToFiles-Simple {
         New-Item -ItemType Directory -Path $outputDir | Out-Null
     }
 
+    # 前回の分割ファイルが後続処理に混ざらないよう削除する
+    Clear-WCMSplitFiles -Directory $outputDir
+
     $index = 1
     foreach ($line in $lines) {
         $fileName = "{0:D4}.txt" -f $index
@@ -176,5 +186,6 @@ function Create-FileList-Simple {
     }
 
     # リストを指定されたファイルに保存
+    New-WCMParentDirectory -Path $outputFilePath
     Set-Content -Path $outputFilePath -Value $fileList -Encoding $enc
 }

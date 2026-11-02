@@ -75,6 +75,14 @@ function Invoke-WCM {
         }
     }
 
+    # 実行前に全タスクの Action を検証する（実行できるのはモジュールの公開関数のみ）
+    $allowedActions = $MyInvocation.MyCommand.Module.ExportedFunctions.Keys
+    foreach ($t in $tasks) {
+        if ($t.Action -and ($allowedActions -notcontains $t.Action)) {
+            throw "Action '$($t.Action)' は実行できません（モジュールの Public 関数名を指定してください）"
+        }
+    }
+
     foreach ($t in $tasks) {
         if (-not ($t -is [hashtable])) {
             throw "Tasks の各要素は hashtable である必要があります。"
@@ -99,15 +107,8 @@ function Invoke-WCM {
             # 絶対パスっぽいものはそのまま（Windows/UNC/Unix など、ルート付きパス）
             if ([System.IO.Path]::IsPathRooted($v)) { continue }
 
-            # ファイル/ディレクトリっぽいものだけ（雑だが安全側）
-            if (
-                $v -match '\\|/' -or
-                (
-                    ($k -is [string]) -and
-                    ($k -match '(?i)(Path|File|Directory|Dir|Folder)$') -and
-                    ($v -match '\.\w+$')
-                )
-            ) {
+            # パスを受け取るパラメータだけ（値に / を含むだけの文字列は書き換えない）
+            if (($k -is [string]) -and ($k -match '(?i)(Path|File[AB]?|Directory|Dir|Folder)$')) {
                 if (-not [string]::IsNullOrWhiteSpace($baseDir)) {
                     $params[$k] = Join-Path -Path $baseDir -ChildPath $v
                 }
@@ -117,10 +118,6 @@ function Invoke-WCM {
         $displayName = if ($t.Name) { $t.Name } else { $action }
 
         if ($PSCmdlet.ShouldProcess($displayName, $action)) {
-            if (-not (Get-Command -Name $action -ErrorAction SilentlyContinue)) {
-                throw "Action '$action' が見つかりません（モジュールの Public 関数名を指定してください）"
-            }
-
             try {
                 Write-WCMLog -Level INFO -Message "Start task: $displayName | Action=$action"
             } catch {}
@@ -143,7 +140,20 @@ function Invoke-WCM {
                 }
             } catch {}
 
-            & $action @params
+            # タスク内のエラーで後続タスクが前回の出力を処理しないよう、失敗したら全体を止める
+            if (-not $params.ContainsKey('ErrorAction')) {
+                $params['ErrorAction'] = 'Stop'
+            }
+
+            try {
+                & $action @params
+            } catch {
+                $reason = $_.Exception.Message
+                try {
+                    Write-WCMLog -Level ERROR -Message "Task failed: $displayName | $reason" -ErrorAction SilentlyContinue
+                } catch {}
+                throw "タスク '$displayName' ($action) が失敗したため、以降のタスクを中止しました: $reason"
+            }
 
             try {
                 Write-WCMLog -Level INFO -Message "Finish task: $displayName"

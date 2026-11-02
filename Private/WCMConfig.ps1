@@ -51,7 +51,7 @@ function Get-WCMConfigSchema {
 
     @{
         DefaultEncoding  = @{ Type = 'string';  Allowed = @('UTF8', 'UTF7', 'UTF32', 'Unicode', 'BigEndianUnicode', 'ASCII', 'Default', 'OEM', 'Shift-JIS') }
-        DefaultDelimiter = @{ Type = 'string';  Allowed = @(',', ';', "\t", '|') }
+        DefaultDelimiter = @{ Type = 'string';  Allowed = @(',', ';', "`t", '|') }
         HasHeader        = @{ Type = 'bool' }
         BackupFiles      = @{ Type = 'bool' }
         BackupExtension  = @{ Type = 'string' }

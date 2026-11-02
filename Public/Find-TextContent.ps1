@@ -144,6 +144,7 @@ function Find-TextContent {
     if ($SearchResults.Count -gt 0) {
         # ヘッダー行を出力
         $Header = "MatchedPattern(OR/AND),LineNumber,FilePath,Content"
+        New-WCMParentDirectory -Path $OutputFile
         $Header | Out-File $OutputFile -Encoding $enc
 
         # 結果を出力

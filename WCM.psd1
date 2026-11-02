@@ -7,7 +7,7 @@
     CompanyName = 'Unknown'
     Copyright = '(c) 2025. All rights reserved.'
     Description = 'Windows CSV Manager - PowerShell module for CSV file text editing operations (CSVファイルのテキスト編集操作用PowerShellモジュール)'
-    PowerShellVersion = '5.1'
+    PowerShellVersion = '7.0'
     
     # このモジュールからエクスポートされる関数
     FunctionsToExport = @(

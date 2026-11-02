@@ -158,6 +158,7 @@ function Process-CsvAdvanced {
 
     # 結果の出力
     if ($OutputFile) {
+        New-WCMParentDirectory -Path $OutputFile
         $processedLines | Out-File -FilePath $OutputFile -Encoding $enc
         Write-WCMLog -Level INFO -Message "Processing completed. Results saved to $OutputFile." -Data @{ OutputFile = $OutputFile; Lines = $processedLines.Count }
     } else {

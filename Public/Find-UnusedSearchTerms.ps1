@@ -144,6 +144,7 @@ function Find-UnusedSearchTerms {
 
     # 出力ファイルが指定されている場合
     if ($OutputFile) {
+        New-WCMParentDirectory -Path $OutputFile
         $unusedTermsArray | Set-Content -Path $OutputFile -Encoding $enc
         Write-Host "未使用の文字列は $OutputFile に保存されました。" -ForegroundColor Green
     }

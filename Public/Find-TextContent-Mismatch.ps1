@@ -162,6 +162,7 @@ function Find-TextContent-Mismatch {
 
     if ($SearchResults.Count -gt 0) {
         $Header = "FilePath,LineNumber,Content,Status"
+        New-WCMParentDirectory -Path $OutputFile
         $Header | Out-File $OutputFile -Encoding $enc
 
         $SearchResults | Out-File $OutputFile -Append -Encoding $enc

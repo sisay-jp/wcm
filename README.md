@@ -221,7 +221,7 @@ Get-Help Update-CsvText -Detailed
 
 ## 要件 / Requirements
 
-- PowerShell 5.1 以降 / PowerShell 5.1 or later
+- PowerShell 7.0 以降 / PowerShell 7.0 or later
 - Windows, Linux, macOS (PowerShell Core)
 
 ## ライセンス / License
