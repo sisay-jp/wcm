@@ -16,7 +16,9 @@ function Process-TextFile {
     .PARAMETER ListFile
         ファイルリストの出力ファイルパス（オプション）
     .PARAMETER SortItems
-        行内のアイテムをソートするかどうか（オプション、デフォルト: $false）
+        行内のアイテムをソートして出力するかどうか（オプション、デフォルト: $false）
+    .PARAMETER DedupeIgnoreOrder
+        並び順だけが異なる行を重複として扱う。出力の並びは元のまま（オプション、デフォルト: $false）
     .PARAMETER CountExclusions
         除外されたワードのカウントを表示するかどうか（オプション、デフォルト: $false）
     .PARAMETER ExcludePrefix
@@ -47,13 +49,16 @@ function Process-TextFile {
         [switch]$SortItems,
 
         [Parameter(Mandatory=$false)]
+        [switch]$DedupeIgnoreOrder,
+
+        [Parameter(Mandatory=$false)]
         [switch]$CountExclusions,
 
         [Parameter(Mandatory=$false)]
         [string]$ExcludePrefix = '<'
     )
 
-    $enc = $script:WCMConfig.DefaultEncoding
+    $enc =$script:WCMConfig.DefaultEncoding
 
     # ファイル存在チェック
     if (-not (Test-Path $InputFileA)) {
@@ -77,7 +82,7 @@ function Process-TextFile {
     Write-Host "処理対象行数: $($textB.Count)"
 
     # 除外処理を実行
-    $result = Remove-Values -lines $textB -values $values -SortItems:$SortItems -CountExclusions:$CountExclusions -ExcludePrefix $ExcludePrefix
+    $result = Remove-Values -lines $textB -values $values -SortItems:$SortItems -DedupeIgnoreOrder:$DedupeIgnoreOrder -CountExclusions:$CountExclusions -ExcludePrefix $ExcludePrefix
     $modifiedLines = $result.Lines
 
     # カウント結果を表示
@@ -129,6 +134,7 @@ function Remove-Values {
         [string[]]$lines,
         [string[]]$values,
         [switch]$SortItems,
+        [switch]$DedupeIgnoreOrder,
         [switch]$CountExclusions,
         [string]$ExcludePrefix = '<'
     )
@@ -195,6 +201,10 @@ function Remove-Values {
                 $sortedItems = $filteredItems | Sort-Object
                 $standardizedLine = $sortedItems -join ','
                 $outputLine = $standardizedLine
+            } elseif ($DedupeIgnoreOrder) {
+                # 重複判定だけソート形式で行い、出力は元の並びを維持する
+                $standardizedLine = ($filteredItems | Sort-Object) -join ','
+                $outputLine = $filteredItems -join ',' -replace ',+', ',' -replace '^,|,$',''
             } else {
                 $standardizedLine = $filteredItems -join ','
                 $outputLine = $filteredItems -join ',' -replace ',+', ',' -replace '^,|,$',''

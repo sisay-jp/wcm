@@ -1,5 +1,4 @@
-Old,New
-Tokyo,東京
-Osaka,大阪
-Sales,営業
-Marketing,マーケティング
+"Tokyo","Tokyo->東京"
+"Osaka","Osaka->大阪"
+"Sales","Sales->営業"
+"Marketing","Marketing->マーケティング"

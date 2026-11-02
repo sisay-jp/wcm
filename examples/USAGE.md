@@ -207,14 +207,15 @@ Get-Help Update-CsvText -Detailed
 # 高度な処理を実行 / Perform advanced processing
 Process-CsvAdvanced -InputFile "examples/sample_data.csv" -ReplaceFile "rules.csv" -ExcludeFile "exclude.txt" -OutputFile "processed.csv"
 
-# ルールファイル (rules.csv) の例 / Example of rules file:
-# Condition,ReplacePair
-# Tokyo,Osaka->東京,大阪
-# Sales,Marketing->営業,マーケティング
+# ルールファイル (rules.csv) の例（ヘッダなし: "条件","置換元->置換先"） / Example of rules file (no header: "condition","old->new"):
+# "Tokyo,Sales","Tokyo->東京"
+# "Sales","Sales->営業,マーケティング"
 
 # 除外ファイル (exclude.txt) の例 / Example of exclude file:
 # 不要ワード1,不要ワード2,不要ワード3
 ```
+
+`Process-CsvAdvanced` は互換性のために残している関数で、処理は `Process-CsvAdvanced-Updated` と同じです。 / `Process-CsvAdvanced` is kept for compatibility and behaves the same as `Process-CsvAdvanced-Updated`.
 
 ### コンソール出力 / Console output
 
@@ -232,21 +233,18 @@ $result | Format-Table
 # シンプルな高度な処理を実行 / Perform simple advanced processing
 Process-CsvAdvanced-Updated -InputFile "examples/sample_data.csv" -ReplaceFile "rules_simple.csv" -ExcludeFile "exclude.txt" -OutputFile "processed_simple.csv"
 
-# 置換ファイル (rules_simple.csv) の例 / Example of simple rules file:
-# Old,New
-# Tokyo,東京
-# Osaka,大阪
-# Sales,営業
+# 置換ファイル (rules_simple.csv) の例（ヘッダなし: "条件","置換元->置換先"） / Example of simple rules file (no header: "condition","old->new"):
+# "Tokyo","Tokyo->東京"
+# "Osaka","Osaka->大阪"
+# "Sales","Sales->営業"
 
 # 除外ファイル (exclude.txt) の例 / Example of exclude file:
-# 不要ワード1
-# 不要ワード2
-# 不要ワード3
+# 不要ワード1,不要ワード2,不要ワード3
 ```
 
 ### 特徴 / Features
 
-- シンプルな置換ルール（Old->New） / Simple replacement rules (Old->New)
+- 条件付きの置換ルール（ファイルの記載順に適用） / Conditional replacement rules (applied in file order)
 - 除外ワードリスト / Exclusion word list
 - 行内重複削除（順序維持） / Deduplication within lines (order preserved)
 - 行間重複削除（ソート形式で比較） / Deduplication between lines (compared in sorted form)
@@ -290,6 +288,9 @@ Process-TextFile -InputFileA "exclude.txt" -InputFileB "data.txt" -CountExclusio
 
 # ソートとカウントを組み合わせ / Combine sorting and counting
 Process-TextFile -InputFileA "exclude.txt" -InputFileB "data.txt" -SortItems -CountExclusions -ExcludePrefix "<"
+
+# 並び順だけが異なる行を重複として扱い、出力は元の並びのまま / Treat lines differing only in order as duplicates, keeping the original order
+Process-TextFile -InputFileA "exclude.txt" -InputFileB "data.txt" -DedupeIgnoreOrder
 ```
 
 ### コンソール出力 / Console output
@@ -319,6 +320,7 @@ Process-TextFile-Updated -InputFileA "exclude.txt" -InputFileB "data.txt" -Outpu
 
 ### 特徴 / Features
 
+- `Process-TextFile -DedupeIgnoreOrder -CountExclusions` と同じ処理（互換性のために残している関数） / Same as `Process-TextFile -DedupeIgnoreOrder -CountExclusions` (kept for compatibility)
 - 除外ワードリストに基づくフィルタリング / Filtering based on exclusion word list
 - 重複行の排除（ソート形式で比較） / Deduplication of rows (compared in sorted form)
 - 出力はソート前の形式を維持 / Output maintains pre-sort format
