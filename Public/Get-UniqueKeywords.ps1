@@ -30,6 +30,7 @@ function Get-UniqueKeywords {
     )
 
     $enc = $script:WCMConfig.DefaultEncoding
+    $caseSensitive = [bool]$script:WCMConfig.CaseSensitive
 
     # フォルダ存在チェック
     if (-not (Test-Path $TargetFolder)) {
@@ -47,7 +48,7 @@ function Get-UniqueKeywords {
             ForEach-Object { $_.Split(',') } |
             ForEach-Object { $_.Trim() } |
             Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
-            Sort-Object -Unique
+            Sort-Object -Unique -CaseSensitive:$caseSensitive
 
         # 結果の出力
         if ($uniqueKeywords) {
@@ -60,6 +61,7 @@ function Get-UniqueKeywords {
 
             # ファイルに出力（$OutputFileが指定されている場合）
             if (-not [string]::IsNullOrWhiteSpace($OutputFile)) {
+                New-WCMParentDirectory -Path $OutputFile
                 $uniqueKeywords | Out-File -FilePath $OutputFile -Encoding $enc
                 Write-Host ""
                 Write-Host "----------------------------------------" -ForegroundColor Yellow

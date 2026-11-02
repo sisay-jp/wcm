@@ -36,20 +36,29 @@ function Merge-TextFiles {
     Write-Host "出力先: $OutputPath"
     Write-Host "--------------------"
 
-    # 出力ファイルが存在する場合は削除（新規作成のため）
-    if (Test-Path -Path $OutputPath) {
-        Remove-Item -Path $OutputPath -Force
+    if (-not (Test-Path -LiteralPath $SourcePath)) {
+        Write-Error "検索対象のパスが見つかりません: $SourcePath"
+        return
     }
 
     # Get-ChildItem で再帰的にファイルを取得
     # -Recurse: サブフォルダを含めて再帰的に検索
     # -File: ファイルのみを対象とする
-    $files = Get-ChildItem -Path $SourcePath -Filter $FileFilter -Recurse -File
+    # 出力ファイルが検索範囲内にある場合は集約対象から外す
+    $outputFullPath = $PSCmdlet.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputPath)
+    $files = @(Get-ChildItem -Path $SourcePath -Filter $FileFilter -Recurse -File | Where-Object { $_.FullName -ne $outputFullPath })
 
+    # 集約元が無いときは既存の出力を消さず、エラーとして後続処理を止められるようにする
     if ($files.Count -eq 0) {
-        Write-Warning "指定されたパス ($SourcePath) 以下に $FileFilter に一致するファイルが見つかりませんでした。"
+        Write-Error "指定されたパス ($SourcePath) 以下に $FileFilter に一致するファイルが見つかりませんでした。"
         return
     }
+
+    # 出力ファイルが存在する場合は削除（新規作成のため）
+    if (Test-Path -LiteralPath $OutputPath) {
+        Remove-Item -LiteralPath $OutputPath -Force
+    }
+    New-WCMParentDirectory -Path $OutputPath
 
     $fileCount = 0
 

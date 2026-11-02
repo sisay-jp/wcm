@@ -54,9 +54,18 @@ function Process-CsvAdvanced-Updated {
     # -------------------------
     # existence checks
     # -------------------------
-    if (-not (Test-Path -LiteralPath $InputFile)) {
-        Write-WCMLog -Level ERROR -Message "入力ファイルが見つかりません: $InputFile" -Data @{ Path = $InputFile }
-        return
+    # 指定されたファイルが無いまま続行すると、未置換・未除外の結果が正常終了に見えるため止める
+    $requiredFiles = @(
+        @{ Label = '入力ファイル'; Path = $InputFile }
+        @{ Label = '置換ファイル'; Path = $ReplaceFile }
+        @{ Label = '除外ファイル'; Path = $ExcludeFile }
+    )
+    foreach ($required in $requiredFiles) {
+        if ($required.Path -and -not (Test-Path -LiteralPath $required.Path)) {
+            $message = "$($required.Label)が見つかりません: $($required.Path)"
+            Write-WCMLog -Level ERROR -Message $message -Data @{ Path = $required.Path } -ErrorAction SilentlyContinue
+            throw $message
+        }
     }
 
     # -------------------------
@@ -74,46 +83,50 @@ function Process-CsvAdvanced-Updated {
     # load replace rules
     # complexReplaceMap:
     #   key: "cond1,cond2"（normalize 済み）
-    #   val: hashtable old=>new（old は normalize 済み / new は Trim のみ）
+    #   val: OrderedDictionary old=>new（old は normalize 済み / new は Trim のみ）
+    # 適用順がルールファイルの記載順（条件キーは初出順）になるよう順序付きで保持する
     # -------------------------
-    $complexReplaceMap = @{}
+    $ruleComparer = if ($caseSensitive) { [System.StringComparer]::Ordinal } else { [System.StringComparer]::OrdinalIgnoreCase }
+    $complexReplaceMap = [System.Collections.Specialized.OrderedDictionary]::new($ruleComparer)
 
     if ($ReplaceFile) {
-        if (Test-Path -LiteralPath $ReplaceFile) {
-            Import-Csv -Path $ReplaceFile -Header "Condition", "ReplacePair" -Encoding $enc | ForEach-Object {
-                $row = $_
-                if ($null -eq $row) { return }
+        Import-Csv -Path $ReplaceFile -Header "Condition", "ReplacePair" -Encoding $enc | ForEach-Object {
+            $row = $_
+            if ($null -eq $row) { return }
 
-                $condRaw = [string]$row.Condition
-                $pairRaw = [string]$row.ReplacePair
+            $condRaw = [string]$row.Condition
+            $pairRaw = [string]$row.ReplacePair
 
-                if ([string]::IsNullOrWhiteSpace($condRaw)) { return }
-                if ([string]::IsNullOrWhiteSpace($pairRaw)) { return }
+            if ([string]::IsNullOrWhiteSpace($condRaw)) { return }
+            if ([string]::IsNullOrWhiteSpace($pairRaw)) { return }
 
-                # Condition はセル内の "A,B" を分割
-                $conditions = $condRaw.Split(',') | ForEach-Object { & $normalize $_ } | Where-Object { $_ }
-                if ($conditions.Count -eq 0) { return }
+            # Condition はセル内の "A,B" を分割
+            $conditions = $condRaw.Split(',') | ForEach-Object { & $normalize $_ } | Where-Object { $_ }
+            if ($conditions.Count -eq 0) { return }
 
-                # ReplacePair は最初の -> でのみ分割（new は空でもOK）
-                if ($pairRaw -notlike '*->*') { return }
-                $parts = $pairRaw -split '->', 2
+            # ReplacePair は最初の -> でのみ分割（new は空でもOK）
+            if ($pairRaw -notlike '*->*') { return }
+            $parts = $pairRaw -split '->', 2
 
-                $oldWord = & $normalize $parts[0]
-                $newWord = if ($parts.Count -gt 1) { $parts[1].Trim() } else { "" }
+            $oldWord = & $normalize $parts[0]
+            $newWord = if ($parts.Count -gt 1) { $parts[1].Trim() } else { "" }
 
-                if ([string]::IsNullOrWhiteSpace($oldWord)) { return }
+            if ([string]::IsNullOrWhiteSpace($oldWord)) { return }
 
-                $key = $conditions -join ','
-                if (-not $complexReplaceMap.ContainsKey($key)) {
-                    $complexReplaceMap[$key] = @{}
-                }
-                $complexReplaceMap[$key][$oldWord] = $newWord
+            $key = $conditions -join ','
+            if (-not $complexReplaceMap.Contains($key)) {
+                $complexReplaceMap[$key] = [System.Collections.Specialized.OrderedDictionary]::new($ruleComparer)
             }
 
-            Write-WCMLog -Level INFO -Message "置換ルール条件キー数: $($complexReplaceMap.Count)" -Data @{ ReplaceFile = $ReplaceFile }
-        } else {
-            Write-WCMLog -Level WARN -Message "置換ファイルが見つかりません: $ReplaceFile" -Data @{ ReplaceFile = $ReplaceFile }
+            # 同じ条件・同じ置換元は最後のルールを採用する（内容が異なる場合は気付けるよう警告）
+            $pairsForKey = $complexReplaceMap[$key]
+            if ($pairsForKey.Contains($oldWord) -and $pairsForKey[$oldWord] -cne $newWord) {
+                Write-WCMLog -Level WARN -Message "置換ルールが重複しています（後のルールを採用）: 条件='$key' 置換元='$oldWord' '$($pairsForKey[$oldWord])' -> '$newWord'" -Data @{ ReplaceFile = $ReplaceFile }
+            }
+            $pairsForKey[$oldWord] = $newWord
         }
+
+        Write-WCMLog -Level INFO -Message "置換ルール条件キー数: $($complexReplaceMap.Count)" -Data @{ ReplaceFile = $ReplaceFile }
     }
 
     # -------------------------
@@ -122,13 +135,9 @@ function Process-CsvAdvanced-Updated {
     # -------------------------
     $excludeWords = @()
     if ($ExcludeFile) {
-        if (Test-Path -LiteralPath $ExcludeFile) {
-            $fileContent = Get-Content -Path $ExcludeFile -Encoding $enc -Raw
-            $excludeWords = $fileContent -split ',' | ForEach-Object { & $normalize $_ } | Where-Object { $_ }
-            Write-WCMLog -Level INFO -Message "除外ワード数: $($excludeWords.Count)" -Data @{ ExcludeFile = $ExcludeFile }
-        } else {
-            Write-WCMLog -Level WARN -Message "除外ファイルが見つかりません: $ExcludeFile" -Data @{ ExcludeFile = $ExcludeFile }
-        }
+        $fileContent = Get-Content -Path $ExcludeFile -Encoding $enc -Raw
+        $excludeWords = $fileContent -split ',' | ForEach-Object { & $normalize $_ } | Where-Object { $_ }
+        Write-WCMLog -Level INFO -Message "除外ワード数: $($excludeWords.Count)" -Data @{ ExcludeFile = $ExcludeFile }
     }
 
     # -------------------------
@@ -158,7 +167,7 @@ function Process-CsvAdvanced-Updated {
         # 2) condition-based replace
         foreach ($entry in $complexReplaceMap.GetEnumerator()) {
             $conditions = $entry.Key.Split(',')
-            $replacementPairs = $entry.Value  # hashtable old=>new
+            $replacementPairs = $entry.Value  # OrderedDictionary old=>new
 
             # 条件判定（CaseSensitive に統一）
             $allConditionsMet = $true
@@ -241,6 +250,7 @@ function Process-CsvAdvanced-Updated {
     # -------------------------
     # output
     # -------------------------
+    New-WCMParentDirectory -Path $OutputFile
     $processedLines | Out-File -FilePath $OutputFile -Encoding $enc
     Write-WCMLog -Level INFO -Message "処理が完了しました: $OutputFile" -Data @{ OutputFile = $OutputFile; Lines = $processedLines.Count }
 }
