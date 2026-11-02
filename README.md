@@ -34,9 +34,11 @@ WCM/
 │   ├── Merge-TextFiles.ps1
 │   ├── Find-UnusedSearchTerms.ps1
 │   └── Get-UniqueKeywords.ps1
-├── Private/              # プライベート関数（将来の拡張用）
+├── Private/              # プライベート関数（設定、ログ、共通処理）
 ├── examples/             # 使用例とサンプルデータ
-└── Demo-WCM.ps1          # デモンストレーションスクリプト
+├── Demo-WCM.ps1          # デモンストレーションスクリプト
+├── Test-WCM.ps1          # 基本機能のテスト
+└── Test-WCM-Regression.ps1  # 回帰テスト
 ```
 
 ## 機能 / Features
@@ -78,8 +80,10 @@ Import-Module ./WCM.psd1
 # モジュールをインポート
 Import-Module ./WCM.psd1
 
-# タスクの実行
-Invoke-WCM -ConfigPath "wcm.run.psd1"
+# タスクの実行（サンプル設定）
+# 自分用の設定はリポジトリ直下に wcm.run.psd1 などの名前で作成します（Git 管理外）
+# Params の相対パスは設定ファイルの場所を基準に解決されます
+Invoke-WCM -ConfigPath "examples/wcm.run.psd1"
 
 # CSV ファイルを読み込む
 $data = Import-CsvFile -Path "examples/sample_data.csv"
@@ -125,11 +129,11 @@ Select-CsvRows -Path "examples/sample_data.csv" -Column "City" -Value "Tokyo" -O
 
 ### 高度な処理 / Advanced Processing
 
-- **`Process-CsvAdvanced`** - 条件付き置換、除外、重複削除を実行 / Perform conditional replacement, exclusion, and deduplication
-- **`Process-CsvAdvanced-Updated`** - シンプル置換、除外、重複削除を実行 / Perform simple replacement, exclusion, and deduplication
+- **`Process-CsvAdvanced-Updated`** - 条件付き置換、除外、重複削除を実行 / Perform conditional replacement, exclusion, and deduplication
+- **`Process-CsvAdvanced`** - `Process-CsvAdvanced-Updated` と同じ（互換性のために残している関数） / Same as `Process-CsvAdvanced-Updated` (kept for compatibility)
 - **`Process-TextFile`** - テキストファイルの除外、重複削除、ファイル分割を実行 / Perform text file exclusion, deduplication, and file splitting
-- **`Process-TextFile-Updated`** - テキストファイルを処理して除外と重複削除を行う（更新版） / Process text files for exclusion and deduplication (updated version)
-- **`Process-TextFile-Simple`** - テキストファイルをシンプルに処理する（除外、重複削除、ファイル分割） / Perform simple text file processing (exclusion, deduplication, file splitting)
+- **`Process-TextFile-Updated`** - `Process-TextFile -DedupeIgnoreOrder -CountExclusions` と同じ（互換性のために残している関数） / Same as `Process-TextFile -DedupeIgnoreOrder -CountExclusions` (kept for compatibility)
+- **`Process-TextFile-Simple`** - `Process-TextFile` のオプションなしと同じ（互換性のために残している関数） / Same as `Process-TextFile` without options (kept for compatibility)
 - **`Merge-TextFiles`** - 指定ディレクトリ内のテキストファイルを1つに集約 / Merge multiple text files from a directory into one
 - **`Find-UnusedSearchTerms`** - 指定フォルダ内で使用されていない検索用語を検出 / Detect search terms not used in specified folder
 - **`Get-UniqueKeywords`** - 指定フォルダ内のテキストファイルからユニークなキーワードを抽出 / Extract unique keywords from text files in specified folder
@@ -191,7 +195,7 @@ Select-CsvRows -Path "data.csv" -Column "Age" -Value "30" -Operator "GreaterThan
 
 ```powershell
 # CSV の高度な処理（条件付き置換、除外、重複削除）
-Process-CsvAdvanced -Path "data.csv" -OutputPath "processed.csv" -ExcludePatterns @("test", "temp") -RemoveDuplicates
+Process-CsvAdvanced-Updated -InputFile "data.csv" -ReplaceFile "rules.csv" -ExcludeFile "exclude.txt" -OutputFile "processed.csv"
 
 # テキストファイルの処理（除外、重複削除、ファイル分割）
 Process-TextFile -InputFileA "exclude.txt" -InputFileB "data.txt" -OutputFile "result.txt" -OutputDir "modify" -ListFile "file_list.txt"
@@ -223,6 +227,16 @@ Get-Help Update-CsvText -Detailed
 
 - PowerShell 7.0 以降 / PowerShell 7.0 or later
 - Windows, Linux, macOS (PowerShell Core)
+
+## テスト / Tests
+
+```powershell
+# 基本機能のテスト / Basic tests
+./Test-WCM.ps1
+
+# 回帰テスト（失敗があれば終了コード 1） / Regression tests (exit code 1 on failure)
+./Test-WCM-Regression.ps1
+```
 
 ## ライセンス / License
 

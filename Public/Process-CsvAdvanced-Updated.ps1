@@ -28,7 +28,7 @@ function Process-CsvAdvanced-Updated {
     .PARAMETER ExcludeFile
         除外ワード定義ファイル（テキスト: カンマ区切り）
     .PARAMETER OutputFile
-        出力ファイルのパス
+        出力ファイルのパス（指定しない場合はコンソールに出力）
     #>
     [CmdletBinding()]
     param(
@@ -41,7 +41,7 @@ function Process-CsvAdvanced-Updated {
         [Parameter(Mandatory = $false)]
         [string]$ExcludeFile,
 
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $false)]
         [string]$OutputFile
     )
 
@@ -250,7 +250,12 @@ function Process-CsvAdvanced-Updated {
     # -------------------------
     # output
     # -------------------------
-    New-WCMParentDirectory -Path $OutputFile
-    $processedLines | Out-File -FilePath $OutputFile -Encoding $enc
-    Write-WCMLog -Level INFO -Message "処理が完了しました: $OutputFile" -Data @{ OutputFile = $OutputFile; Lines = $processedLines.Count }
+    if ($OutputFile) {
+        New-WCMParentDirectory -Path $OutputFile
+        $processedLines | Out-File -FilePath $OutputFile -Encoding $enc
+        Write-WCMLog -Level INFO -Message "処理が完了しました: $OutputFile" -Data @{ OutputFile = $OutputFile; Lines = $processedLines.Count }
+    } else {
+        # コンソールに出力
+        $processedLines
+    }
 }

@@ -15,4 +15,6 @@ work/
 # OS generated files
 .DS_Store
 Thumbs.db
-wcm.run.psd1
+
+# 個人の実行設定（サンプルは examples/wcm.run.psd1）
+/wcm.run*.psd1

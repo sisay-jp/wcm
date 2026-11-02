@@ -18,15 +18,16 @@
   }
 
   # 実行したいメイン処理を列挙します（順に実行）
+  # Params の相対パスは、この設定ファイルの場所を基準に解決されます
   Tasks = @(
-    @{ 
+    @{
       Name   = 'csv_advanced'
       Action = 'Process-CsvAdvanced-Updated'
       Params = @{
-        InputFile   = 'examples/sample_data.csv'
-        ReplaceFile = 'examples/rules.csv'
-        ExcludeFile = 'examples/exclude.txt'
-        OutputFile  = 'demo_output/from_config_out.csv'
+        InputFile   = 'sample_data.csv'
+        ReplaceFile = 'rules.csv'
+        ExcludeFile = 'exclude.txt'
+        OutputFile  = '../demo_output/from_config_out.csv'
       }
     }
   )
